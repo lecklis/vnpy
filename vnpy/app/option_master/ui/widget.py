@@ -16,6 +16,7 @@ from .monitor import (
 )
 from .chart import OptionVolatilityChart, ScenarioAnalysisChart
 from .manager import ElectronicEyeManager, PricingVolatilityManager
+from .spread import OptionSpreadWidget
 
 
 class OptionManager(QtWidgets.QWidget):
@@ -41,6 +42,7 @@ class OptionManager(QtWidgets.QWidget):
         self.scenario_chart: ScenarioAnalysisChart = None
         self.eye_manager: ElectronicEyeManager = None
         self.pricing_manager: PricingVolatilityManager = None
+        self.spread_widget: OptionSpreadWidget = None
 
         self.init_ui()
         self.register_event()
@@ -65,6 +67,7 @@ class OptionManager(QtWidgets.QWidget):
         self.scenario_button = QtWidgets.QPushButton("情景分析")
         self.eye_button = QtWidgets.QPushButton("电子眼")
         self.pricing_button = QtWidgets.QPushButton("波动率管理")
+        self.spread_button = QtWidgets.QPushButton("组合分析")
 
         for button in [
             self.market_button,
@@ -75,7 +78,8 @@ class OptionManager(QtWidgets.QWidget):
             self.hedge_button,
             self.scenario_button,
             self.eye_button,
-            self.pricing_button
+            self.pricing_button,
+            self.spread_button
         ]:
             button.setEnabled(False)
 
@@ -92,6 +96,7 @@ class OptionManager(QtWidgets.QWidget):
         hbox.addWidget(self.scenario_button)
         hbox.addWidget(self.pricing_button)
         hbox.addWidget(self.eye_button)
+        hbox.addWidget(self.spread_button)
 
         self.setLayout(hbox)
 
@@ -142,6 +147,7 @@ class OptionManager(QtWidgets.QWidget):
         self.scenario_chart = ScenarioAnalysisChart(self.option_engine, self.portfolio_name)
         self.eye_manager = ElectronicEyeManager(self.option_engine, self.portfolio_name)
         self.pricing_manager = PricingVolatilityManager(self.option_engine, self.portfolio_name)
+        self.spread_widget = OptionSpreadWidget(self.option_engine)
 
         self.market_monitor.itemDoubleClicked.connect(self.manual_trader.update_symbol)
 
@@ -154,6 +160,7 @@ class OptionManager(QtWidgets.QWidget):
         self.hedge_button.clicked.connect(self.hedge_widget.show)
         self.eye_button.clicked.connect(self.eye_manager.show)
         self.pricing_button.clicked.connect(self.pricing_manager.show)
+        self.spread_button.clicked.connect(self.spread_widget.show)
 
         for button in [
             self.market_button,
@@ -164,7 +171,8 @@ class OptionManager(QtWidgets.QWidget):
             self.scenario_button,
             self.hedge_button,
             self.eye_button,
-            self.pricing_button
+            self.pricing_button,
+            self.spread_button
         ]:
             button.setEnabled(True)
 
@@ -180,6 +188,7 @@ class OptionManager(QtWidgets.QWidget):
             self.scenario_chart.close()
             self.eye_manager.close()
             self.pricing_manager.close()
+            self.spread_widget.close()
 
         event.accept()
 
