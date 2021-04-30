@@ -4,9 +4,11 @@ Basic widgets for VN Trader.
 
 import csv
 import platform
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict
 from copy import copy
+import html
 from tzlocal import get_localzone
 
 from PyQt5 import QtCore, QtGui, QtWidgets, Qt
@@ -28,7 +30,6 @@ from ..event import (
 from ..object import OrderRequest, SubscribeRequest, PositionData
 from ..utility import load_json, save_json, get_digits
 from ..setting import SETTING_FILENAME, SETTINGS
-
 
 COLOR_LONG = QtGui.QColor("red")
 COLOR_SHORT = QtGui.QColor("green")
@@ -182,6 +183,97 @@ class MsgCell(BaseCell):
         """"""
         super(MsgCell, self).__init__(content, data)
         self.setTextAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+
+
+class BaseLogWidget(QtWidgets.QTextEdit):
+    headers: Dict[str, str] = {}
+    __show_limit = 1000
+
+    event_type = ""
+    signal: QtCore.pyqtSignal = QtCore.pyqtSignal(Event)
+
+    def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
+        """"""
+        super(BaseLogWidget, self).__init__()
+
+        self.main_engine: MainEngine = main_engine
+        self.event_engine: EventEngine = event_engine
+
+        self.log_data = []
+        headers_html = []
+        for v in self.headers.values():
+            headers_html.append(f"<th>{v}</th>")
+        self.log_html_head = f'<body><table id="log"><tr>{"".join(headers_html)}</tr>'
+        self.log_html_tail = "</table></body>"
+        self.init_ui()
+        self.register_event()
+
+    def init_ui(self):
+        self.setReadOnly(True)
+        self.document().setDocumentMargin(0)
+        self.document().setDefaultStyleSheet("""
+            table {
+                width: 100%;
+                table-layout: fixed;
+                padding-left:0; padding-right:0; padding-top:0; padding-bottom:0;
+            }
+            #log {
+              font-family: 'Microsoft YaHei', 'Lantinghei SC', 'Monaco', 'monospace';
+              border-collapse: collapse;
+              width: 100%;
+              padding-left:0; padding-right:0; padding-top:0; padding-bottom:0;
+            }
+
+            #log td, #log th {
+              border: 3px solid #32414b;
+              white-space: pre-line;
+              padding-left:0; padding-right:0; padding-top:0; padding-bottom:0;
+            }
+
+            #log td {
+              color: #e0e1e4;
+            }
+
+            #log th {
+              text-align: left;
+              background-color: #32414b;
+              color: white;
+            }
+            """)
+
+    def register_event(self) -> None:
+        """
+        Register event handler into event engine.
+        """
+        if self.event_type:
+            self.signal.connect(self.process_event)
+            self.event_engine.register(self.event_type, self.signal.emit)
+
+    def process_event(self, event: Event) -> None:
+        """
+        Process new data from event and update into table.
+        """
+        log_item_html: [str] = []
+        for k in self.headers:
+            c = event.data.__getattribute__(k)
+            if type(c) is datetime:
+                c = c.strftime("%y-%m-%d %H:%M:%S")
+            log_item_html.append(f"<td>{html.escape(str(c))}</td>")
+        self.log_data.append(f"<tr>{''.join(log_item_html)}</tr>")
+        self.check_data()
+        self.set_html_content()
+
+    def check_data(self):
+        if len(self.log_data) >= self.__show_limit:
+            self.log_data.pop(0)
+
+    def set_html_content(self):
+        html = f"{self.log_html_head}{''.join(reversed(self.log_data))}{self.log_html_tail}"
+        self.setHtml(html)
+
+    def setRowCount(self, c: int):
+        self.log_data = self.log_data[:c]
+        self.set_html_content()
 
 
 class BaseMonitor(QtWidgets.QTableWidget):
@@ -391,6 +483,19 @@ class TickMonitor(BaseMonitor):
         "datetime": {"display": "时间", "cell": TimeCell, "update": True},
         "gateway_name": {"display": "接口", "cell": BaseCell, "update": False},
     }
+
+
+class LogMonitor2(BaseLogWidget):
+    """
+    Monitor for log data.
+    """
+    headers = {
+        "time": "时间",
+        "msg": "日志",
+        "gateway_name": "接口"
+    }
+
+    event_type = EVENT_LOG
 
 
 class LogMonitor(BaseMonitor):
@@ -746,9 +851,9 @@ class TradingWidget(QtWidgets.QWidget):
         self.setLayout(vbox)
 
     def create_label(
-        self,
-        color: str = "",
-        alignment: int = QtCore.Qt.AlignLeft
+            self,
+            color: str = "",
+            alignment: int = QtCore.Qt.AlignLeft
     ) -> QtWidgets.QLabel:
         """
         Create label with certain font color.
@@ -941,7 +1046,7 @@ class TradingWidget(QtWidgets.QWidget):
                 direction = Direction.LONG
             elif data.direction == Direction.LONG:
                 direction = Direction.SHORT
-            else:       # Net position mode
+            else:  # Net position mode
                 if data.volume > 0:
                     direction = Direction.SHORT
                 else:
